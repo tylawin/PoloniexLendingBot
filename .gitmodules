@@ -1,0 +1,9 @@
+[submodule "Decimal"]
+	path = submodules/Decimal
+	url = https://github.com/tylawin/Decimal
+[submodule "cpprest"]
+	path = submodules/cpprestsdk
+	url = https://github.com/Microsoft/cpprestsdk
+[submodule "submodules/hmac"]
+	path = submodules/hmac
+	url = https://github.com/ogay/hmac
