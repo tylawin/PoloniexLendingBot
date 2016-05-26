@@ -5,8 +5,8 @@ Automatically manage optimizing lend offers for Poloniex API.
 
 # Tested With
 ```
-- Boost 1.59
-- c++4.9.2 / VisualStudio2015
+- Raspbian / c++4.9.2 / Boost 1.55
+- Windows / VisualStudio2015 / Boost 1.59
 ```
 
 # Build
