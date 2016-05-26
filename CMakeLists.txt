@@ -30,7 +30,10 @@ ELSE()
 	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y")
 ENDIF()
 
+
 ADD_SUBDIRECTORY(submodules/hmac)
+ADD_LIBRARY(hmac STATIC submodules/hmac/sha2.c submodules/hmac/hmac_sha2.c)
+
 
 ADD_SUBDIRECTORY(source)
 
