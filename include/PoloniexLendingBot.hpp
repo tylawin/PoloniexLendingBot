@@ -243,7 +243,7 @@ namespace tylawin
 					try
 					{
 						struct stat attrib;
-						stat(settingsFile_.c_str(), &attrib);
+						stat(settingsFile_.string().c_str(), &attrib);
 						settingsFileModifiedTime_ = boost::posix_time::ptime_from_tm(*gmtime(&(attrib.st_mtime)));
 						//settingsFileModifiedTime_ = filesystem::last_write_time(settingsFile_);
 
@@ -317,7 +317,7 @@ namespace tylawin
 					write_json(settingsFile_.string(), pt);
 
 					struct stat attrib;
-					stat(settingsFile_.c_str(), &attrib);
+					stat(settingsFile_.string().c_str(), &attrib);
 					settingsFileModifiedTime_ = boost::posix_time::ptime_from_tm(*gmtime(&(attrib.st_mtime)));
 					//settingsFileModifiedTime_ = filesystem::last_write_time(settingsFile_);
 				}
@@ -327,7 +327,7 @@ namespace tylawin
 				void update()
 				{
 					struct stat attrib;
-					stat(settingsFile_.c_str(), &attrib);
+					stat(settingsFile_.string().c_str(), &attrib);
 					boost::posix_time::ptime tmpTime = boost::posix_time::ptime_from_tm(*gmtime(&(attrib.st_mtime)));
 					if(settingsFileModifiedTime_ != tmpTime)
 					//if(settingsFileModifiedTime_ != filesystem::last_write_time(settingsFile_))

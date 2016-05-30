@@ -12,19 +12,29 @@ Inspired by: https://github.com/Mikadily/poloniexlendingbot
 ```
 
 # Build
+### Requires
+- cmake 3.0.1 or greater
+- Boost 1.55 or greater
 ```
 git clone https://github.com/tylawin/PoloLendingBot
-```
-###### Linux:
-```
 cd PoloLendingBot
 mkdir build
 cd build
-cmake ..
-make
+```
+###### Linux: (raspbian)
+```
+cmake -DBOOST_LIBRARYDIR="/usr/lib/arm-linux-gnueabihf" ..
+```
+###### Windows: (msvc 2015)
+```
+//32 bit
+cmake -DBOOST_ROOT="dir" -DBOOST_LIBRARYDIR="dir" -G "Visual Studio 14 2015" ..
+//64 bit
+cmake -DBOOST_ROOT="dir" -DBOOST_LIBRARYDIR="dir" -G "Visual Studio 14 2015 Win64" ..
 ```
 ###### Run:
 ```
+make
 source/PoloLendingBot
 {editor} config.json // insert your api key and secret
 source/PoloLendingBot
