@@ -202,7 +202,7 @@ namespace tylawin
 				Settings(const filesystem::path &settingsFile)
 					: settingsFile_(settingsFile)
 				{
-					data_.startupStatisticsInitializeInterval_ = std::chrono::seconds(60 * 1);
+					data_.startupStatisticsInitializeInterval_ = std::chrono::seconds(60 * 15);
 					data_.updateRateStatisticsInterval_ = std::chrono::seconds(10);
 					data_.refreshLoansInterval_ = std::chrono::seconds(60);
 					data_ = readDataFromFile();

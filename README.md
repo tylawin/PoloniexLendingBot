@@ -43,10 +43,21 @@ source/PoloLendingBot
 # Config Settings
 ###### global settings (Intervals in seconds)
 - apiKey
+ - API key string from poloniex. Disable withdraw and trade permissions when setting up API keys in Poloniex for security.
+ - Default: "" // Required
 - apiSecret
+ - API secret string from poloniex.
+ - Default: "" // Required
 - startupStatisticsInitializeInterval
+ - Seconds to wait after startup before creating loan offers to initialize loan rate stats.
+ - Loan statistics are currently calculated from 15 minutes worth of fifo queue.
+ - Default: 60*15
 - updateRateStatisticsInterval
+ - Seconds between each rate sample.
+ - Default: 10
 - refreshLoansInterval
+ - Seconds between adjusting loan offer rates and spread amounts. At each interval it cancels all offers and then creates new offers based on current state of statistics, available lending balance, most recent settings from config file, and snapshot of other avaiable offers.
+ - Default: 60
 
 ###### Per Coin:
 - lowestOffersDustSkipAmount
@@ -104,3 +115,6 @@ source/PoloLendingBot
 Apache License 2.0
 See LICENSE file for details.
 ```
+
+# Future feature notes
+- maxLendingAccountAmount: Does api require trade or withdraw permission to move balance from lending to exchange account?
