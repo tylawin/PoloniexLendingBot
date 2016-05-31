@@ -57,7 +57,7 @@ namespace tylawin
 
 			std::string paramsToUrlString(const QueryParams &m) {
 				std::string res("");
-				for(QueryParams::const_iterator iter = m.begin(); iter != m.end(); iter++)
+				for(QueryParams::const_iterator iter = m.begin(); iter != m.end(); ++iter)
 				{
 					if(iter != m.begin()) res += "&";
 					res += iter->first + "=" + iter->second;
@@ -166,7 +166,7 @@ namespace tylawin
 				}*/
 				
 				char messageDigest[2 * SHA512_DIGEST_SIZE + 1];
-				for(int i = 0; i < SHA512_DIGEST_SIZE; i++)
+				for(int i = 0; i < SHA512_DIGEST_SIZE; ++i)
 				{
 					snprintf(messageDigest + i * 2, 3, "%02x", (unsigned int)digest[i]);
 				}

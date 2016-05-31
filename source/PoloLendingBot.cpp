@@ -37,7 +37,7 @@ int main(int argc, char **argv)
 		return false;
 	});
 
-	for(size_t i = 0; i < argc; i++)
+	for(size_t i = 0; i < argc; ++i)
 	{
 		if(strcmp(argv[i], "--clearAutoRenew") == 0)
 		{
