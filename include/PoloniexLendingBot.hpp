@@ -72,7 +72,7 @@ namespace tylawin
 					Rate minRateSkipAmount_;
 					uint32_t minTotalLendOrdersToSpread_, maxTotalLendOrdersToSpread_, lendOrdersToSpread_;
 					Rate minDailyRate_, maxDailyRate_;
-					std::map<Rate, uint16_t> dayThreshold_;
+					std::map<Rate, uint8_t> dayThreshold_;
 					bool autoRenewWhenNotRunning_;
 					boost::optional<Amount> maxLendingAccountAmount_;//TODO: auto move excess coin from lending to exchange account
 					bool stopLending_;//Leave coin in lending account but don't submit new lend orders
@@ -135,7 +135,7 @@ namespace tylawin
 						{
 							boost::property_tree::ptree &pt3 = pr.second;
 							Rate tmpRate = Rate(pt3.get<std::string>("ratePercent")) / 100;
-							uint16_t tmpDays = pt3.get<uint16_t>("days");
+							uint8_t tmpDays = pt3.get<uint8_t>("days");
 
 							dayThreshold_[tmpRate] = tmpDays;
 						}
@@ -503,7 +503,7 @@ namespace tylawin
 				if(amt < PoloniexApi::minimumLendAmount_)
 					throw std::invalid_argument(__FILE__ ":" STR__LINE__ " - invalid amount. " + to_string(amt) + " not >= " + std::to_string(PoloniexApi::minimumLendAmount_));
 
-				uint16_t days = 2;
+				uint8_t days = 2;
 				for(auto pr : settings_.data_.coinSettings_.at(curCode).dayThreshold_)
 				{
 					if(days < pr.second && rate >= pr.first)
@@ -726,7 +726,7 @@ namespace tylawin
 
 				uint32_t tmpSpreadLendCount = coinSettings.lendOrdersToSpread_;
 
-				uint32_t activeLoanCount = activeLoans_[curCode].size();
+				uint32_t activeLoanCount = static_cast<uint32_t>(activeLoans_[curCode].size());
 
 				if(activeLoanCount + tmpSpreadLendCount < coinSettings.minTotalLendOrdersToSpread_)
 					tmpSpreadLendCount = coinSettings.minTotalLendOrdersToSpread_;
@@ -912,7 +912,7 @@ namespace tylawin
 							INFO << "dryrun -- skipping wait to get statistics";
 							break;
 						}
-						if(nowTime - startTime > boost::posix_time::seconds(settings_.data_.startupStatisticsInitializeInterval_.count()))
+						if(nowTime - startTime > boost::posix_time::seconds(static_cast<long>(settings_.data_.startupStatisticsInitializeInterval_.count())))
 							break;
 					}
 					catch(const std::exception &e)
@@ -931,14 +931,14 @@ namespace tylawin
 				}
 
 				refreshActiveLoansAndTotalLent();
-				startTime = boost::posix_time::second_clock::universal_time() - boost::posix_time::seconds(settings_.data_.refreshLoansInterval_.count());
+				startTime = boost::posix_time::second_clock::universal_time() - boost::posix_time::seconds(static_cast<long>(settings_.data_.refreshLoansInterval_.count()));
 				while(true)
 				{
 					try
 					{
 						nowTime = boost::posix_time::second_clock::universal_time();
 						lendingRateStatistics();
-						if(nowTime - startTime >= boost::posix_time::seconds(settings_.data_.refreshLoansInterval_.count()))
+						if(nowTime - startTime >= boost::posix_time::seconds(static_cast<long>(settings_.data_.refreshLoansInterval_.count())))
 						{
 							try
 							{

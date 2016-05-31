@@ -155,7 +155,9 @@ namespace tylawin
 			{
 				unsigned char digest[SHA512_DIGEST_SIZE];
 
-				hmac_sha512((unsigned char*)key.c_str(), key.size(), (unsigned char*)message.c_str(), message.size(), digest, SHA512_DIGEST_SIZE);
+				hmac_sha512(reinterpret_cast<const unsigned char*>(key.data()), static_cast<unsigned int>(key.size())
+					, reinterpret_cast<const unsigned char*>(message.data()), static_cast<unsigned int>(message.size())
+					, digest, SHA512_DIGEST_SIZE);
 				
 				/*TODO: strstream instead of char []
 				std::ostringstream tmpStrStream;
@@ -168,7 +170,7 @@ namespace tylawin
 				char messageDigest[2 * SHA512_DIGEST_SIZE + 1];
 				for(int i = 0; i < SHA512_DIGEST_SIZE; ++i)
 				{
-					snprintf(messageDigest + i * 2, 3, "%02x", (unsigned int)digest[i]);
+					snprintf(messageDigest + i * 2, 3, "%02x", static_cast<unsigned int>(digest[i]));
 				}
 
 				return std::string(messageDigest);

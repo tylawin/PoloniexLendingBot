@@ -126,7 +126,7 @@ namespace tylawin
 						activeLoan.amount_    = CppRest::Utilities::u2s(loan[U("amount")].as_string());
 						activeLoan.rate_      = CppRest::Utilities::u2s(loan[U("rate")].as_string());
 						activeLoan.duration_  = loan[U("duration")].as_integer();
-						activeLoan.autoRenew_ = static_cast<bool>(loan[U("autoRenew")].as_integer());
+						activeLoan.autoRenew_ = loan[U("autoRenew")].as_integer() != 0;
 						activeLoan.dateTime_  = boost::posix_time::time_from_string(CppRest::Utilities::u2s(loan[U("date")].as_string()));
 						activeLoan.fees_      = CppRest::Utilities::u2s(loan[U("fees")].as_string());
 
