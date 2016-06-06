@@ -123,12 +123,12 @@ namespace tylawin
 							throw std::invalid_argument("maxTotalLendOrdersToSpread(" + std::to_string(maxTotalLendOrdersToSpread_) + ") valid range is [1, 50000]");
 
 						minDailyRate_ = Rate(pt.get<std::string>("minDailyRate"));
-						if(minDailyRate_ < Decimal("0.00003") || minDailyRate_ > Decimal("0.05")) // 0.003% daily is 1 % yearly
-							throw std::invalid_argument("minDailyRate(" + to_string(minDailyRate_) + ") valid range is [0.00003, 0.05]");
+						if(minDailyRate_ < Decimal("0.000001") || minDailyRate_ > Decimal("0.05")) // 5% max on Poloniex
+							throw std::invalid_argument("minDailyRate(" + to_string(minDailyRate_) + ") valid range is [0.000001, 0.05]");
 
 						maxDailyRate_ = Rate(pt.get<std::string>("maxDailyRate"));
-						if(maxDailyRate_ < Decimal("0.00003") || maxDailyRate_ > Decimal("0.05"))
-							throw std::invalid_argument("maxDailyRate(" + to_string(minDailyRate_) + ") valid range is [0.00003, 0.05]");
+						if(maxDailyRate_ < Decimal("0.000001") || maxDailyRate_ > Decimal("0.05"))
+							throw std::invalid_argument("maxDailyRate(" + to_string(minDailyRate_) + ") valid range is [0.000001, 0.05]");
 
 						boost::property_tree::ptree pt2 = pt.get_child("rateDayThresholds");
 						for(auto pr : pt2)
