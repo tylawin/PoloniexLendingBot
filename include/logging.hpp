@@ -26,6 +26,7 @@ limitations under the License.
 #include <boost/log/support/date_time.hpp>
 #include <boost/log/sinks/sync_frontend.hpp>
 #include <boost/log/sinks/text_ostream_backend.hpp>
+#include <boost/log/sinks/text_file_backend.hpp>
 #include <boost/log/core/core.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
@@ -35,7 +36,6 @@ BOOST_LOG_ATTRIBUTE_KEYWORD(timestamp, "TimeStamp", boost::posix_time::ptime)
 void logInit()
 {
 	boost::log::add_common_attributes();
-	
 	typedef boost::log::sinks::synchronous_sink<boost::log::sinks::text_ostream_backend> text_sink;
 	auto consoleSink = boost::make_shared<text_sink>();
 //	consoleSink->locked_backend()->add_stream(boost::shared_ptr<std::ostream>(&std::clog, boost::null_deleter()));
@@ -46,9 +46,17 @@ void logInit()
 	consoleSink->set_filter(boost::log::trivial::severity >= boost::log::trivial::info);
 	
 	boost::log::core::get()->add_sink(consoleSink);
-	
-	auto fileSink = boost::make_shared<text_sink>();
-	fileSink->locked_backend()->add_stream(boost::make_shared<std::ofstream>("PoloLendingBot_log.txt", std::ios::out | std::ios::app));
+
+	//TODO: mkdir ./logs
+	typedef boost::log::sinks::synchronous_sink<boost::log::sinks::text_file_backend> file_sink;
+	auto fileSink = boost::make_shared<file_sink>(
+		boost::log::keywords::file_name = "logs/PoloLendingBot_log_%Y%m%d.txt",
+		boost::log::keywords::open_mode = std::ios::app,
+		boost::log::keywords::rotation_size = 1000000,
+		boost::log::keywords::min_free_space = 100000000);
+	fileSink->locked_backend()->set_file_collector(boost::log::sinks::file::make_collector(boost::log::keywords::target = "logs", boost::log::keywords::max_size = 5000000));
+	fileSink->locked_backend()->scan_for_files();
+//	fileSink->locked_backend()->add_stream(boost::make_shared<std::ofstream>("PoloLendingBot_log.txt", std::ios::out | std::ios::app));
 	fileSink->locked_backend()->auto_flush(true);
 	boost::log::formatter fileFormatter = boost::log::expressions::stream
 		<< boost::log::expressions::format_date_time(timestamp, "[%Y-%m-%d %H:%M:%S.%f] ")
