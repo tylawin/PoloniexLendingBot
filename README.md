@@ -21,23 +21,31 @@ cd PoloLendingBot
 mkdir build
 cd build
 ```
-###### Linux: (raspbian)
+###### Linux: (Raspbian)
 ```
 cmake -DBOOST_LIBRARYDIR="/usr/lib/arm-linux-gnueabihf" ..
 ```
-###### Windows: (msvc 2015)
+###### Windows: (MSVC 2015)
 ```
 //32 bit
 cmake -DBOOST_ROOT="dir" -DBOOST_LIBRARYDIR="dir" -G "Visual Studio 14 2015" ..
 //64 bit
 cmake -DBOOST_ROOT="dir" -DBOOST_LIBRARYDIR="dir" -G "Visual Studio 14 2015 Win64" ..
 ```
-###### Run:
+###### Linux: (Raspbian)
 ```
 make
 source/PoloLendingBot
 {editor} config.json // insert your api key and secret
 source/PoloLendingBot
+```
+###### Windows: (MSVC 2015)
+```
+open PoloniexLendingBot.sln with MSVC
+build PoloLendingBot
+run PoloLendingBot once
+{editor} config.json // insert your api key and secret
+run PoloLendingBot
 ```
 
 # Config Settings
