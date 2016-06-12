@@ -399,7 +399,6 @@ namespace tylawin
 
 				if(loanOffers.size() != 0)
 				{
-					std::unordered_map<std::string, Amount> onOrderBalances;
 					for(auto cur : loanOffers.as_object())
 					{
 						CurrencyCode loanCurCode = CppRest::Utilities::u2s(cur.first);
@@ -530,7 +529,6 @@ namespace tylawin
 				if(loanOffers.size() == 0)//api returns array when empty instead of object... [] vs {} then the next loop crashes...
 					return;
 
-				std::unordered_map<std::string, Amount> onOrderBalances;
 				for(auto cur : loanOffers.as_object())
 				{
 					CurrencyCode loanCurCode = CppRest::Utilities::u2s(cur.first);
@@ -538,7 +536,6 @@ namespace tylawin
 					{
 						for(auto offer : loanOffers[CppRest::Utilities::s2u(loanCurCode)].as_array())
 						{
-							onOrderBalances[loanCurCode] += Amount(CppRest::Utilities::u2s(offer[U("amount")].as_string()));
 							web::json::value msg;
 							msg[U("message")] = web::json::value("dryrun");
 							if(dryRun_ == false)
