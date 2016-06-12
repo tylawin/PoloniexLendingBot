@@ -181,7 +181,7 @@ namespace tylawin
 				struct Data
 				{
 					std::string apiKey_, apiSecret_;
-					std::unordered_map<std::string, Coin> coinSettings_;
+					std::map<std::string, Coin> coinSettings_;
 					std::chrono::seconds startupStatisticsInitializeInterval_;
 					std::chrono::seconds updateRateStatisticsInterval_;
 					std::chrono::seconds refreshLoansInterval_;
