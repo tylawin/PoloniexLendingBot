@@ -52,9 +52,9 @@ void logInit()
 	auto fileSink = boost::make_shared<file_sink>(
 		boost::log::keywords::file_name = "logs/PoloLendingBot_log_%Y%m%d.txt",
 		boost::log::keywords::open_mode = std::ios::app,
-		boost::log::keywords::rotation_size = 1000000,
-		boost::log::keywords::min_free_space = 100000000);
-	fileSink->locked_backend()->set_file_collector(boost::log::sinks::file::make_collector(boost::log::keywords::target = "logs", boost::log::keywords::max_size = 5000000));
+		boost::log::keywords::rotation_size = 10000000,
+		boost::log::keywords::min_free_space = 500000000);
+	fileSink->locked_backend()->set_file_collector(boost::log::sinks::file::make_collector(boost::log::keywords::target = "logs", boost::log::keywords::max_size = 100000000));
 	fileSink->locked_backend()->scan_for_files();
 //	fileSink->locked_backend()->add_stream(boost::make_shared<std::ofstream>("PoloLendingBot_log.txt", std::ios::out | std::ios::app));
 	fileSink->locked_backend()->auto_flush(true);
