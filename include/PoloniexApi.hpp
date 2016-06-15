@@ -81,9 +81,29 @@ namespace tylawin
 			PoloniexApi& operator=(const PoloniexApi &) = delete;
 
 		public:
-			auto cancelLoanOffer(const OrderNumber &orderNumber)
+			struct CancelLoanOfferResponse
 			{
-				return query(web::http::methods::POST, true, "/tradingApi", { {"command","cancelLoanOffer"}, {"orderNumber",std::to_string(orderNumber)} });
+				bool success_;
+				std::string msg_;
+			};
+			CancelLoanOfferResponse cancelLoanOffer(const OrderNumber &orderNumber)
+			{
+				auto jsonResponse = query(web::http::methods::POST, true, "/tradingApi", { {"command","cancelLoanOffer"}, {"orderNumber",std::to_string(orderNumber)} });
+				CancelLoanOfferResponse response;
+				response.msg_ = "ERROR expected json response field missing";
+				if(!jsonResponse.has_field(U("success")) || jsonResponse[U("success")].as_integer() == false)
+				{
+					response.success_ = false;
+					if(jsonResponse.has_field(U("error")))
+						response.msg_ = jsonResponse[U("error")].as_string();
+				}
+				else
+				{
+					response.success_ = true;
+					if(jsonResponse.has_field(U("message")))
+						response.msg_ = jsonResponse[U("message")].as_string();
+				}
+				return response;
 			}
 
 			auto createLoanOffer(const std::string &currency, const std::string &amount, const uint8_t &maxDurationDays, bool autoRenew, const std::string &lendingRate)
@@ -353,7 +373,7 @@ namespace tylawin
 									nonce_ = stoull(errStr.substr(0, errStr.find(U('.'))));
 									throw web::http::http_exception(CppRest::Utilities::u2s(res_json[U("error")].as_string()));
 								}
-								else
+								else if(errStr.compare(0, utility::string_t(U("Error canceling loan order")).size(), U("Error canceling loan order")) != 0)
 									throw std::runtime_error("unexpected result: " + CppRest::Utilities::u2s(res_json.serialize()));
 							}
 

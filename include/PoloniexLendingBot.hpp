@@ -517,7 +517,7 @@ namespace tylawin
 				else
 					response[U("message")] = web::json::value(U("dryrun"));
 
-				INFO << " Created loan offer: " << amtStr << " " << curCode << " at " << to_string(rate * 100, 4) << "% for " << days << "days... " << CppRest::Utilities::u2s(response.serialize());
+				INFO << " Created loan offer: " << amtStr << " " << curCode << " at " << to_string(rate * 100, 4) << "% for " << std::to_string(days) << " days... " << CppRest::Utilities::u2s(response.serialize());
 			}
 
 			//if curCode not supplied then cancel all currencies
@@ -536,11 +536,12 @@ namespace tylawin
 					{
 						for(auto offer : loanOffers[CppRest::Utilities::s2u(loanCurCode)].as_array())
 						{
-							web::json::value msg;
-							msg[U("message")] = web::json::value("dryrun");
+							PoloniexApi::CancelLoanOfferResponse rsp;
+							rsp.success_ = true;
+							rsp.msg_ = "dryrun";
 							if(dryRun_ == false)
-								msg = poloApi.cancelLoanOffer(offer[U("id")].as_integer());
-							INFO << " Canceling " << loanCurCode << " order... " << msg.serialize();
+								rsp = poloApi.cancelLoanOffer(offer[U("id")].as_integer());
+							INFO << " Canceling " << loanCurCode << " order... " << (rsp.success_ ? "Cancelled - msg: " : "Failed - error: ") << rsp.msg_;
 						}
 					}
 				}
