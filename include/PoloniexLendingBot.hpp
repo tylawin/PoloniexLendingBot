@@ -541,7 +541,7 @@ namespace tylawin
 							rsp.msg_ = "dryrun";
 							if(dryRun_ == false)
 								rsp = poloApi.cancelLoanOffer(offer[U("id")].as_integer());
-							INFO << " Canceling " << loanCurCode << " order... " << (rsp.success_ ? "Cancelled - msg: " : "Failed - error: ") << rsp.msg_;
+							INFO << " Canceling " << loanCurCode << " order... " << (rsp.success_ ? "Canceled - msg: " : "Failed - error: ") << rsp.msg_;
 						}
 					}
 				}
