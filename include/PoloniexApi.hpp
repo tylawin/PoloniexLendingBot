@@ -162,8 +162,16 @@ namespace tylawin
 				MARGIN,
 				LENDING
 			};
-			
-			typedef std::unordered_map<AccountTypes, std::unordered_map<CurrencyCode, Amount>> AccountBalances;
+			//TODO: remove when rpi gcc updates: enum class automatic hash doesn't work in gcc 4.9 (raspbian)
+			struct AccountTypesHash
+			{
+				template<typename T>
+				std::size_t operator()(T t) const
+				{
+					return static_cast<std::size_t>(t);
+				}
+			};
+			typedef std::unordered_map<AccountTypes, std::unordered_map<CurrencyCode, Amount>, AccountTypesHash> AccountBalances;
 			auto getAvailableAccountBalances(const boost::optional<AccountTypes> accountType = boost::none)
 			{
 				web::json::value response;
