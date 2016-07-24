@@ -40,6 +40,7 @@ namespace filesystem = boost::filesystem;
 #include <functional>
 #include <map>
 #include <unordered_map>
+#include <unordered_set>
 
 #define Decimal DataTypes::Decimal
 
@@ -370,7 +371,7 @@ namespace tylawin
 
 			void refreshActiveLoansAndTotalLent()
 			{
-				auto lendingAccountBalances = poloApi.getAvailableAccountBalances(PoloniexApi::AccountTypes::LENDING)[U("lending")];
+				auto lendingAccountBalances = poloApi.getAvailableAccountBalances(PoloniexApi::AccountTypes::LENDING)[PoloniexApi::AccountTypes::LENDING];
 				auto loanOffers = poloApi.getOpenLoanOffers();
 				activeLoans_ = poloApi.getActiveLoans();
 
@@ -386,34 +387,28 @@ namespace tylawin
 					lentable.second.rate_ = 0;
 				}
 				
-				if(lendingAccountBalances.size() != 0)
+				for(auto pairCurrencyBalance : lendingAccountBalances)
 				{
-					for(auto pairCurrencyBalance : lendingAccountBalances.as_object())
-					{
-						CurrencyCode curCode = CppRest::Utilities::u2s(pairCurrencyBalance.first);
+					CurrencyCode curCode = pairCurrencyBalance.first;
 
-						totalLentAndLendable_[curCode].amount_ = CppRest::Utilities::u2s(pairCurrencyBalance.second.as_string());
-						totalLentAndLendable_[curCode].rate_ = 0;
-					}
+					totalLentAndLendable_[curCode].amount_ = pairCurrencyBalance.second;
+					totalLentAndLendable_[curCode].rate_ = 0;
 				}
 
-				if(loanOffers.size() != 0)
+				for(auto currencyLoans : loanOffers)
 				{
-					for(auto cur : loanOffers.as_object())
+					CurrencyCode loanCurCode = currencyLoans.first;
+					for(auto offer : currencyLoans.second)
 					{
-						CurrencyCode loanCurCode = CppRest::Utilities::u2s(cur.first);
-						for(auto offer : loanOffers[CppRest::Utilities::s2u(loanCurCode)].as_array())
+						if(totalLentAndLendable_.find(loanCurCode) != totalLentAndLendable_.end())
 						{
-							if(totalLentAndLendable_.find(loanCurCode) != totalLentAndLendable_.end())
-							{
-								totalLentAndLendable_[loanCurCode].amount_ += CppRest::Utilities::u2s(offer[U("amount")].as_string());
-								totalLentAndLendable_[loanCurCode].rate_ += 0;
-							}
-							else
-							{
-								totalLentAndLendable_[loanCurCode].amount_ = CppRest::Utilities::u2s(offer[U("amount")].as_string());
-								totalLentAndLendable_[loanCurCode].rate_ = 0;
-							}
+							totalLentAndLendable_[loanCurCode].amount_ += offer.amount_;
+							totalLentAndLendable_[loanCurCode].rate_ += 0;
+						}
+						else
+						{
+							totalLentAndLendable_[loanCurCode].amount_ = offer.amount_;
+							totalLentAndLendable_[loanCurCode].rate_ = 0;
 						}
 					}
 				}
@@ -529,18 +524,18 @@ namespace tylawin
 				if(loanOffers.size() == 0)//api returns array when empty instead of object... [] vs {} then the next loop crashes...
 					return;
 
-				for(auto cur : loanOffers.as_object())
+				for(auto loanOffersByCurrency : loanOffers)
 				{
-					CurrencyCode loanCurCode = CppRest::Utilities::u2s(cur.first);
+					CurrencyCode loanCurCode = loanOffersByCurrency.first;
 					if(!curCode || (*curCode == loanCurCode))
 					{
-						for(auto offer : loanOffers[CppRest::Utilities::s2u(loanCurCode)].as_array())
+						for(auto offer : loanOffersByCurrency.second)
 						{
 							PoloniexApi::CancelLoanOfferResponse rsp;
 							rsp.success_ = true;
 							rsp.msg_ = "dryrun";
 							if(dryRun_ == false)
-								rsp = poloApi.cancelLoanOffer(offer[U("id")].as_integer());
+								rsp = poloApi.cancelLoanOffer(offer.id_);
 							INFO << " Canceling " << loanCurCode << " order... " << (rsp.success_ ? "Canceled - msg: " : "Failed - error: ") << rsp.msg_;
 						}
 					}
@@ -745,8 +740,16 @@ namespace tylawin
 				return availableLendBalance / tmpSpreadLendCount;
 			}
 
-			void createSpreadLendOffers(const CurrencyCode &curCode, Amount availableLendBalance)
+			struct OptimalOffer
 			{
+				Amount amount_;
+				Rate rate_;
+			};
+			typedef std::vector<OptimalOffer> OptimalOffers;
+			auto calcOptimalSpreadLendOffers(const CurrencyCode &curCode, Amount availableLendBalance)
+			{
+				OptimalOffers optimalOffers;
+
 				const auto& coinSettings = settings_.data_.coinSettings_[curCode];
 				LendingStatistics::Coin &coinStats = lendingStatistics_.coinStats_[curCode];
 
@@ -756,84 +759,155 @@ namespace tylawin
 
 				Rate beginningRateAboveDust = firstLendOfferRate(availableLoans, curCode, coinStats);
 
-				if(beginningRateAboveDust >= coinSettings.maxDailyRate_ || availableLoans.size() == 0)
+				if (beginningRateAboveDust >= coinSettings.maxDailyRate_ || availableLoans.size() == 0)
 				{
-					if(beginningRateAboveDust == coinSettings.maxDailyRate_)
-						createLoanOffer(curCode, availableLendBalance, coinSettings.maxDailyRate_ - PoloniexApi::minimumRateIncrement_);
+					if (beginningRateAboveDust == coinSettings.maxDailyRate_)
+						optimalOffers.emplace_back(OptimalOffer({ availableLendBalance, coinSettings.maxDailyRate_ - PoloniexApi::minimumRateIncrement_ }));
 					else
-						createLoanOffer(curCode, availableLendBalance, coinSettings.maxDailyRate_);
+						optimalOffers.emplace_back(OptimalOffer({ availableLendBalance, coinSettings.maxDailyRate_ }));
 				}
 				else
 				{
 					Amount spreadLendAmount = calcSpreadLendAmount(curCode, availableLendBalance);
-					
-					spreadLendAmount = Amount(to_string(spreadLendAmount,8));//round off
+
+					spreadLendAmount = Amount(to_string(spreadLendAmount, 8));//round off
 
 					uint16_t createLoanOfferCount = 0;
 					Amount offerAmountSum(0);
 					Rate previousCreatedOfferRate(0);
-					for(auto offer : availableLoans)
+					for (auto offer : availableLoans)
 					{
 						const Rate &rate = offer.first;
-						if((rate - PoloniexApi::minimumRateIncrement_) - previousCreatedOfferRate < coinSettings.minRateSkipAmount_)
+						if ((rate - PoloniexApi::minimumRateIncrement_) - previousCreatedOfferRate < coinSettings.minRateSkipAmount_)
 							continue;
 
 						offerAmountSum += offer.second.amount_;
 
-						if(offerAmountSum > coinSettings.spreadDustSkipAmount_ && rate >= beginningRateAboveDust && offer.second.amount_ > coinSettings.spreadDustSkipAmount_ / 2)
+						if (offerAmountSum > coinSettings.spreadDustSkipAmount_ && rate >= beginningRateAboveDust && offer.second.amount_ > coinSettings.spreadDustSkipAmount_ / 2)
 						{
 
-							if(availableLendBalance - spreadLendAmount < 0 || availableLendBalance - spreadLendAmount < PoloniexApi::minimumLendAmount_)
+							if (availableLendBalance - spreadLendAmount < 0 || availableLendBalance - spreadLendAmount < PoloniexApi::minimumLendAmount_)
 								spreadLendAmount = availableLendBalance;
 							previousCreatedOfferRate = rate - PoloniexApi::minimumRateIncrement_;
-							createLoanOffer(curCode, spreadLendAmount, previousCreatedOfferRate);
+							optimalOffers.emplace_back(OptimalOffer({ spreadLendAmount, previousCreatedOfferRate }));
 							availableLendBalance -= spreadLendAmount;
 							++createLoanOfferCount;
 							offerAmountSum = 0;
 						}
-						if(availableLendBalance == 0 || createLoanOfferCount >= coinSettings.lendOrdersToSpread_)
+						if (availableLendBalance == 0 || createLoanOfferCount >= coinSettings.lendOrdersToSpread_)
 							break;
 					}
 
-					if(availableLendBalance > PoloniexApi::minimumLendAmount_ && previousCreatedOfferRate + PoloniexApi::minimumRateIncrement_ < coinStats.lendingRateHigh_15m)
+					if (availableLendBalance > PoloniexApi::minimumLendAmount_ && previousCreatedOfferRate + PoloniexApi::minimumRateIncrement_ < coinStats.lendingRateHigh_15m)
 					{
 						const Rate &lastRate = availableLoans.rbegin()->first;
-						if(lastRate < coinStats.lendingRateHigh_15m)
+						if (lastRate < coinStats.lendingRateHigh_15m)
 						{
-							if(availableLendBalance - spreadLendAmount != 0.0 && availableLendBalance - spreadLendAmount < PoloniexApi::minimumLendAmount_)
+							if (availableLendBalance - spreadLendAmount != 0.0 && availableLendBalance - spreadLendAmount < PoloniexApi::minimumLendAmount_)
 								spreadLendAmount = availableLendBalance;
-							createLoanOffer(curCode, spreadLendAmount, coinStats.lendingRateHigh_15m - PoloniexApi::minimumRateIncrement_);
+							optimalOffers.emplace_back(OptimalOffer({ spreadLendAmount, coinStats.lendingRateHigh_15m - PoloniexApi::minimumRateIncrement_ }));
 							availableLendBalance -= spreadLendAmount;
 						}
 					}
 
-					if(availableLendBalance > PoloniexApi::minimumLendAmount_)
-						createLoanOffer(curCode, availableLendBalance, coinSettings.maxDailyRate_);
+					if (availableLendBalance > PoloniexApi::minimumLendAmount_)
+						optimalOffers.emplace_back(OptimalOffer({ availableLendBalance, coinSettings.maxDailyRate_ }));
 				}
+
+				return optimalOffers;
+			}
+
+			void createSpreadLendOffers(const CurrencyCode &curCode, Amount availableLendBalance)
+			{
+				auto optimalOffers = calcOptimalSpreadLendOffers(curCode, availableLendBalance);
+				for(auto offer : optimalOffers)
+					createLoanOffer(curCode, offer.amount_, offer.rate_);
 			}
 
 			void refreshLoans()
 			{
-				cancelAllOpenLoanOffers();
-
-				auto tmpJsonValue = poloApi.getAvailableAccountBalances(PoloniexApi::AccountTypes::LENDING)[U("lending")];
-				if(tmpJsonValue.size() == 0)
-					return;
-				auto lendingBalances = tmpJsonValue.as_object();
-
-				auto tmp = poloApi.getOpenLoanOffers();
-
-				for(auto activeCur : lendingBalances)
+				bool needRefreshLoans = true;
+				while (needRefreshLoans)
 				{
-					CurrencyCode curCode = CppRest::Utilities::u2s(activeCur.first);
+					needRefreshLoans = false;
+					auto lendingBalances = poloApi.getAvailableAccountBalances(PoloniexApi::AccountTypes::LENDING)[PoloniexApi::AccountTypes::LENDING];
 
-					if(settings_.data_.coinSettings_[curCode].stopLending_)
-						continue;
-					
-					Amount availableBalance(CppRest::Utilities::u2s(activeCur.second.as_string()));
+					std::unordered_set<CurrencyCode> currenciesToRefreshLoansOf;
+					for (auto avail : lendingBalances)
+						currenciesToRefreshLoansOf.insert(avail.first);
+					auto loanOffers = poloApi.getOpenLoanOffers();
+					for (auto loansByCurrency : loanOffers)
+						currenciesToRefreshLoansOf.insert(loansByCurrency.first);
 
-					if(availableBalance >= PoloniexApi::minimumLendAmount_)
-						createSpreadLendOffers(curCode, availableBalance);
+					Amount availableBalance;
+					for (auto curCode : currenciesToRefreshLoansOf)
+					{
+						if (settings_.data_.coinSettings_[curCode].stopLending_)
+						{
+							cancelAllOpenLoanOffers(curCode);
+							continue;
+						}
+
+						availableBalance = 0;
+						if(lendingBalances.find(curCode) != lendingBalances.end())
+							availableBalance += lendingBalances.at(curCode);
+						if(loanOffers.find(curCode) != loanOffers.end())
+							for (auto loanOffer : loanOffers.at(curCode))
+								availableBalance += loanOffer.amount_;
+
+						auto optimalSpreadOffers = calcOptimalSpreadLendOffers(curCode, availableBalance);
+
+						//cancel offers that are not optimal
+						bool cancelLoanOfferFailed = false;
+						if (loanOffers.find(curCode) != loanOffers.end())
+							for (auto existingOfferIter = loanOffers.at(curCode).begin(); existingOfferIter != loanOffers.at(curCode).end(); )
+							{
+								auto &existingOffer = *existingOfferIter;
+								auto iter = std::find_if(optimalSpreadOffers.begin(), optimalSpreadOffers.end(), [&](const auto &optimalOffer) { 
+									return (existingOffer.amount_ == optimalOffer.amount_ && existingOffer.rate_ == optimalOffer.rate_);
+								});
+								if (iter != optimalSpreadOffers.end())
+								{
+									optimalSpreadOffers.erase(iter);
+									++existingOfferIter;
+								}
+								else //if (!isOptimal)
+								{
+									auto rsp = poloApi.cancelLoanOffer(existingOffer.id_);
+									INFO << " Canceling " << curCode << " order of " << existingOffer.amount_ << " at " << to_string(existingOffer.rate_ * 100, 4) << "%... " << (rsp.success_ ? "Canceled - msg: " : "Failed - error: ") << rsp.msg_;
+									if (rsp.success_)
+									{
+										existingOfferIter = loanOffers.at(curCode).erase(existingOfferIter);
+									}
+									else
+									{
+										cancelLoanOfferFailed = true;
+										++existingOfferIter;
+									}
+								}
+							}
+
+						if (cancelLoanOfferFailed)
+						{
+							needRefreshLoans = true;//reset loop to recalculate available balance and optimal offers
+							continue;
+						}
+
+						//create offers that are optimal
+						for (auto newOffer : optimalSpreadOffers)
+						{
+							bool existsAlready = false;
+							if (loanOffers.find(curCode) != loanOffers.end())
+								for (auto existingOffer : loanOffers.at(curCode))
+								{
+									if (newOffer.amount_ == existingOffer.amount_ && newOffer.rate_ == existingOffer.rate_)
+										existsAlready = true;
+								}
+
+							if (!existsAlready)
+								createLoanOffer(curCode, newOffer.amount_, newOffer.rate_);
+						}
+					}
 				}
 
 				refreshActiveLoansAndTotalLent();

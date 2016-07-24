@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 #pragma once
-
 #include "cpprest_utilities.hpp"
 #include "Decimal.hpp"
 
@@ -95,13 +94,13 @@ namespace tylawin
 				{
 					response.success_ = false;
 					if(jsonResponse.has_field(U("error")))
-						response.msg_ = jsonResponse[U("error")].as_string();
+						response.msg_ = CppRest::Utilities::u2s(jsonResponse[U("error")].as_string());
 				}
 				else
 				{
 					response.success_ = true;
 					if(jsonResponse.has_field(U("message")))
-						response.msg_ = jsonResponse[U("message")].as_string();
+						response.msg_ = CppRest::Utilities::u2s(jsonResponse[U("message")].as_string());
 				}
 				return response;
 			}
@@ -163,17 +162,14 @@ namespace tylawin
 				MARGIN,
 				LENDING
 			};
-			struct AccountBalances
-			{
-				Amount exchange_;
-				Amount margin_;
-				Amount lending_;
-			};
-
+			
+			typedef std::unordered_map<AccountTypes, std::unordered_map<CurrencyCode, Amount>> AccountBalances;
 			auto getAvailableAccountBalances(const boost::optional<AccountTypes> accountType = boost::none)
 			{
+				web::json::value response;
+
 				if(!accountType)
-					return query(web::http::methods::POST, true, "/tradingApi", { {"command","returnAvailableAccountBalances"} });
+					response = query(web::http::methods::POST, true, "/tradingApi", { {"command","returnAvailableAccountBalances"} });
 				else
 				{
 					std::string type;
@@ -184,8 +180,41 @@ namespace tylawin
 						case AccountTypes::LENDING:  type = "lending";  break;
 						default: throw std::runtime_error("invalid accountType enum");
 					}
-					return query(web::http::methods::POST, true, "/tradingApi", { {"command","returnAvailableAccountBalances"}, {"account",type} });
+					response = query(web::http::methods::POST, true, "/tradingApi", { {"command","returnAvailableAccountBalances"}, {"account",type} });
 				}
+
+				AccountBalances accountBalances;
+				accountBalances[AccountTypes::EXCHANGE] = std::unordered_map<CurrencyCode, Amount>();
+				accountBalances[AccountTypes::MARGIN] = std::unordered_map<CurrencyCode, Amount>();
+				accountBalances[AccountTypes::LENDING] = std::unordered_map<CurrencyCode, Amount>();
+				if (response.size() == 0)
+					;
+				else
+				{
+					for (auto accountTypeBalances : response.as_object())
+					{
+						auto accountTypeStr = CppRest::Utilities::u2s(accountTypeBalances.first);
+						AccountTypes accountType;
+						if (accountTypeStr == "exchange")
+							accountType = AccountTypes::EXCHANGE;
+						else if (accountTypeStr == "margin")
+							accountType = AccountTypes::MARGIN;
+						else if (accountTypeStr == "lending")
+							accountType = AccountTypes::LENDING;
+						else
+							continue;//skip unknown type
+
+						if(accountTypeBalances.second.size() > 0)
+							for (auto balance : accountTypeBalances.second.as_object())
+							{
+								CurrencyCode curCode = CppRest::Utilities::u2s(balance.first);
+								Amount amt = CppRest::Utilities::u2s(balance.second.as_string());
+
+								accountBalances[accountType][curCode] = amt;
+							}
+					}
+				}
+				return accountBalances;
 			}
 
 			
@@ -240,6 +269,16 @@ namespace tylawin
 				return loanOrders;
 			}
 
+			struct LoanOffer
+			{
+				LoanId id_;
+				Amount amount_;
+				Rate rate_;
+				uint16_t duration_;
+				bool autoRenew_;
+				boost::posix_time::ptime date_;
+			};
+			typedef std::unordered_map<CurrencyCode, std::vector<LoanOffer>> LoanOffers;
 			auto getOpenLoanOffers()
 			{
 				auto response = query(web::http::methods::POST, true, "/tradingApi", { { "command","returnOpenLoanOffers" } });
@@ -247,7 +286,28 @@ namespace tylawin
 				{
 					throw std::runtime_error("error response: " + CppRest::Utilities::u2s(response[U("error")].as_string()));
 				}
-				return response;
+
+				LoanOffers loanOffers;
+				if (response.size() != 0)
+				{
+					for (auto cur : response.as_object())
+					{
+						CurrencyCode loanCurCode = CppRest::Utilities::u2s(cur.first);
+						for (auto offer : response[CppRest::Utilities::s2u(loanCurCode)].as_array())
+						{
+							loanOffers[loanCurCode].emplace_back(LoanOffer({
+								static_cast<LoanId>(offer[U("id")].as_integer()),
+								CppRest::Utilities::u2s(offer[U("amount")].as_string()),
+								CppRest::Utilities::u2s(offer[U("rate")].as_string()),
+								static_cast<uint16_t>(offer[U("duration")].as_integer()),
+								offer[U("autoRenew")].as_integer() != 0,
+								boost::posix_time::time_from_string(CppRest::Utilities::u2s(offer[U("date")].as_string()))
+							}));
+						}
+					}
+				}
+
+				return loanOffers;
 			}
 
 			auto toggleAutoRenew(OrderNumber orderNumber)
