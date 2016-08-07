@@ -727,6 +727,14 @@ namespace tylawin
 				if(activeLoanCount + tmpSpreadLendCount > coinSettings.maxTotalLendOrdersToSpread_)
 					tmpSpreadLendCount = coinSettings.maxTotalLendOrdersToSpread_ - activeLoanCount;
 
+				if(tmpSpreadLendCount <= 0)
+				{
+					if(availableLendBalance < PoloniexApi::minimumLendAmount_)
+						return Amount(0);
+					else
+						return availableLendBalance;
+				}
+				
 				while(availableLendBalance / tmpSpreadLendCount < PoloniexApi::minimumLendAmount_)
 				{
 					tmpSpreadLendCount -= 1;
