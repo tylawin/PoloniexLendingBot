@@ -721,27 +721,35 @@ namespace tylawin
 
 				uint32_t activeLoanCount = static_cast<uint32_t>(activeLoans_[curCode].size());
 
+				if (activeLoanCount + tmpSpreadLendCount < std::max(activeLoanCount, tmpSpreadLendCount))
+					throw std::runtime_error("uint32_t overflow. activeLoanCount + tmpSpreadLendCount.");
+
 				if(activeLoanCount + tmpSpreadLendCount < coinSettings.minTotalLendOrdersToSpread_)
 					tmpSpreadLendCount = coinSettings.minTotalLendOrdersToSpread_;
 
-				if(activeLoanCount + tmpSpreadLendCount > coinSettings.maxTotalLendOrdersToSpread_)
-					tmpSpreadLendCount = coinSettings.maxTotalLendOrdersToSpread_ - activeLoanCount;
+				if (activeLoanCount + tmpSpreadLendCount > coinSettings.maxTotalLendOrdersToSpread_)
+				{
+					if (activeLoanCount > coinSettings.maxTotalLendOrdersToSpread_)
+						tmpSpreadLendCount = 0u;
+					else
+						tmpSpreadLendCount = coinSettings.maxTotalLendOrdersToSpread_ - activeLoanCount;
+				}
 
-				if(tmpSpreadLendCount <= 0)
+				if(tmpSpreadLendCount == 0u)
 				{
 					if(availableLendBalance < PoloniexApi::minimumLendAmount_)
-						return Amount(0);
+						return Amount(0u);
 					else
 						return availableLendBalance;
 				}
 				
 				while(availableLendBalance / tmpSpreadLendCount < PoloniexApi::minimumLendAmount_)
 				{
-					tmpSpreadLendCount -= 1;
-					if(tmpSpreadLendCount == 0)
+					tmpSpreadLendCount -= 1u;
+					if(tmpSpreadLendCount == 0u)
 					{
 						WARN << "balance < " << PoloniexApi::minimumLendAmount_;
-						return Amount(0);
+						return Amount(0u);
 					}
 				}
 
