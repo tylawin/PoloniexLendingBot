@@ -834,9 +834,13 @@ namespace tylawin
 
 			void refreshLoans()
 			{
+				uint8_t loopResetCounter = 0;
 				bool needRefreshLoans = true;
 				while (needRefreshLoans)
 				{
+					if (loopResetCounter > 3)
+						break;
+					loopResetCounter++;
 					needRefreshLoans = false;
 					auto lendingBalances = poloApi.getAvailableAccountBalances(PoloniexApi::AccountTypes::LENDING)[PoloniexApi::AccountTypes::LENDING];
 
