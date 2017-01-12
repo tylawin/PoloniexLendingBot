@@ -81,6 +81,9 @@ run PoloLendingBot
  - Amount of lend offers to try to spread available lending balance over.
   - May be less since Poloniex requires lend amount >= 0.001
  - Default: 6
+- minLendOfferAmount
+ - Minimum amount per lend offer. (TODO: automate detection of polo min limit, make this optional)
+ - Default: .001
 - minTotalLendOrdersToSpread
  - Minimum lend orders to spread over. (Restricts amount of each offer)
  - Default: 30

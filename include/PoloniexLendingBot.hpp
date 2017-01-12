@@ -71,6 +71,7 @@ namespace tylawin
 				public:
 					Amount lowestOffersDustSkipAmount_, spreadDustSkipAmount_;
 					Rate minRateSkipAmount_;
+					Rate minLendOfferAmount_;
 					uint32_t minTotalLendOrdersToSpread_, maxTotalLendOrdersToSpread_, lendOrdersToSpread_;
 					Rate minDailyRate_, maxDailyRate_;
 					std::map<Rate, uint8_t> dayThreshold_;
@@ -84,6 +85,7 @@ namespace tylawin
 						spreadDustSkipAmount_("5"),
 						minRateSkipAmount_(".000001"),
 						lendOrdersToSpread_(6),
+						minLendOfferAmount_(".001"),
 						minTotalLendOrdersToSpread_(30),
 						maxTotalLendOrdersToSpread_(600),
 						minDailyRate_(".000030"),//0.9% APY   //".0001" 3.2% APY   //".0003" 10% APY
@@ -114,6 +116,10 @@ namespace tylawin
 						lendOrdersToSpread_ = pt.get<int>("lendOrdersToSpread");
 						if(lendOrdersToSpread_ < 1 || lendOrdersToSpread_ > 50)
 							throw std::invalid_argument("lendOrdersToSpread(" + std::to_string(lendOrdersToSpread_) + ") valid range is [1, 50]");
+
+						minLendOfferAmount_ = Amount(pt.get<std::string>("minLendOfferAmount"));
+						if(minLendOfferAmount_ < Decimal(".00000001") || minLendOfferAmount_ > Decimal("10000000"))
+							throw std::invalid_argument("minLendOfferAmount(" + to_string(minLendOfferAmount_) + ") valid range is [.00000001, 10000000]");
 
 						minTotalLendOrdersToSpread_ = pt.get<int>("minTotalLendOrdersToSpread");
 						if(minTotalLendOrdersToSpread_ < 1 || minTotalLendOrdersToSpread_ > 50000)
@@ -154,6 +160,7 @@ namespace tylawin
 						pt.add("spreadDustSkipAmount", spreadDustSkipAmount_);
 						pt.add("minRateSkipAmount", minRateSkipAmount_);
 						pt.add("lendOrdersToSpread", lendOrdersToSpread_);
+						pt.add("minLendOfferAmount", minLendOfferAmount_);
 						pt.add("minTotalLendOrdersToSpread", minTotalLendOrdersToSpread_);
 						pt.add("maxTotalLendOrdersToSpread", maxTotalLendOrdersToSpread_);
 						pt.add("minDailyRate", minDailyRate_);
@@ -494,11 +501,13 @@ namespace tylawin
 
 			void createLoanOffer(CurrencyCode curCode, Amount amt, Rate rate)
 			{
-				if(amt < PoloniexApi::minimumLendAmount_)
-					throw std::invalid_argument(__FILE__ ":" STR__LINE__ " - invalid amount. " + to_string(amt) + " not >= " + std::to_string(PoloniexApi::minimumLendAmount_));
+				auto coinSettings = settings_.data_.coinSettings_.at(curCode);
+
+				if(amt < coinSettings.minLendOfferAmount_)
+					throw std::invalid_argument(__FILE__ ":" STR__LINE__ " - invalid amount. " + to_string(amt) + " not >= " + to_string(coinSettings.minLendOfferAmount_));
 
 				uint8_t days = 2;
-				for(auto pr : settings_.data_.coinSettings_.at(curCode).dayThreshold_)
+				for(auto pr : coinSettings.dayThreshold_)
 				{
 					if(days < pr.second && rate >= pr.first)
 						days = pr.second;
@@ -737,18 +746,18 @@ namespace tylawin
 
 				if(tmpSpreadLendCount == 0u)
 				{
-					if(availableLendBalance < PoloniexApi::minimumLendAmount_)
+					if(availableLendBalance < coinSettings.minLendOfferAmount_)
 						return Amount(0u);
 					else
 						return availableLendBalance;
 				}
 				
-				while(availableLendBalance / tmpSpreadLendCount < PoloniexApi::minimumLendAmount_)
+				while(availableLendBalance / tmpSpreadLendCount < coinSettings.minLendOfferAmount_)
 				{
 					tmpSpreadLendCount -= 1u;
 					if(tmpSpreadLendCount == 0u)
 					{
-						WARN << "balance < " << PoloniexApi::minimumLendAmount_;
+						WARN << "balance < " << coinSettings.minLendOfferAmount_;
 						return Amount(0u);
 					}
 				}
@@ -801,8 +810,7 @@ namespace tylawin
 
 						if (offerAmountSum > coinSettings.spreadDustSkipAmount_ && rate >= beginningRateAboveDust && offer.second.amount_ > coinSettings.spreadDustSkipAmount_ / 2)
 						{
-
-							if (availableLendBalance - spreadLendAmount < 0 || availableLendBalance - spreadLendAmount < PoloniexApi::minimumLendAmount_)
+							if (availableLendBalance - spreadLendAmount < 0 || availableLendBalance - spreadLendAmount < coinSettings.minLendOfferAmount_)
 								spreadLendAmount = availableLendBalance;
 							previousCreatedOfferRate = rate - PoloniexApi::minimumRateIncrement_;
 							optimalOffers.emplace_back(OptimalOffer({ spreadLendAmount, previousCreatedOfferRate }));
@@ -814,19 +822,19 @@ namespace tylawin
 							break;
 					}
 
-					if (availableLendBalance > PoloniexApi::minimumLendAmount_ && previousCreatedOfferRate + PoloniexApi::minimumRateIncrement_ < coinStats.lendingRateHigh_15m)
+					if (availableLendBalance > coinSettings.minLendOfferAmount_ && previousCreatedOfferRate + PoloniexApi::minimumRateIncrement_ < coinStats.lendingRateHigh_15m)
 					{
 						const Rate &lastRate = availableLoans.rbegin()->first;
 						if (lastRate < coinStats.lendingRateHigh_15m)
 						{
-							if (availableLendBalance - spreadLendAmount != 0.0 && availableLendBalance - spreadLendAmount < PoloniexApi::minimumLendAmount_)
+							if (availableLendBalance - spreadLendAmount != 0.0 && availableLendBalance - spreadLendAmount < coinSettings.minLendOfferAmount_)
 								spreadLendAmount = availableLendBalance;
 							optimalOffers.emplace_back(OptimalOffer({ spreadLendAmount, coinStats.lendingRateHigh_15m - PoloniexApi::minimumRateIncrement_ }));
 							availableLendBalance -= spreadLendAmount;
 						}
 					}
 
-					if (availableLendBalance > PoloniexApi::minimumLendAmount_)
+					if (availableLendBalance > coinSettings.minLendOfferAmount_)
 						optimalOffers.emplace_back(OptimalOffer({ availableLendBalance, coinSettings.maxDailyRate_ }));
 				}
 
@@ -862,6 +870,9 @@ namespace tylawin
 					Amount availableBalance;
 					for (auto curCode : currenciesToRefreshLoansOf)
 					{
+						try
+						{
+
 						if (settings_.data_.coinSettings_[curCode].stopLending_)
 						{
 							cancelAllOpenLoanOffers(curCode);
@@ -927,6 +938,11 @@ namespace tylawin
 							if (!existsAlready)
 								createLoanOffer(curCode, newOffer.amount_, newOffer.rate_);
 						}
+					}
+					catch(...)
+					{
+						ERROR << "Refresh loans failed for " << curCode;
+					}
 					}
 				}
 

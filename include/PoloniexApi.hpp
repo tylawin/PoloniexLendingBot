@@ -51,7 +51,6 @@ namespace tylawin
 		public:
 			typedef uint64_t OrderNumber;
 
-			static constexpr long double minimumLendAmount_ = .001L;
 			static constexpr long double minimumRateIncrement_ = 0.000001L;
 
 			PoloniexApi(const std::string &key, const std::string &secret) :
