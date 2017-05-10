@@ -776,6 +776,10 @@ namespace tylawin
 				OptimalOffers optimalOffers;
 
 				const auto& coinSettings = settings_.data_.coinSettings_[curCode];
+
+				if(availableLendBalance < coinSettings.minLendOfferAmount_)
+					return optimalOffers;
+
 				LendingStatistics::Coin &coinStats = lendingStatistics_.coinStats_[curCode];
 
 				auto availableLoans = getLoanOrdersAndAdjustLimit(curCode);
@@ -937,6 +941,10 @@ namespace tylawin
 								if (!existsAlready)
 									createLoanOffer(curCode, newOffer.amount_, newOffer.rate_);
 							}
+						}
+						catch(const std::exception &e)
+						{
+							ERROR << "Refresh loans failed for " << curCode << ". exception: " << e.what();
 						}
 						catch(...)
 						{
