@@ -367,6 +367,29 @@ namespace tylawin
 				return request;
 			}
 
+			void writeQueryDebugOutputFile(const web::http::http_request &request, bool authenticated, const CppRest::Utilities::QueryParams &params, const web::json::value &res_json)
+			{
+				std::string fileName = "logs/query_" + CppRest::Utilities::paramUriToValidFileName(CppRest::Utilities::u2s(request.request_uri().to_string()));
+				if (authenticated)
+					fileName += "-" + CppRest::Utilities::paramUriToValidFileName(CppRest::Utilities::paramsToUrlString(params));
+				fileName += ".txt";
+				filesystem::path p(fileName);
+				if (!filesystem::exists(p.parent_path()))
+					filesystem::create_directories(p.parent_path());
+				utility::ofstream_t of(p.string());
+				if (of.is_open() == false)
+				{
+					throw std::runtime_error("Unable to open file(" + fileName + ")");
+				}
+				else
+				{
+					of << U("--REQUEST--") << std::endl;
+					of << request.to_string() << std::endl << U("--RESPONSE--") << std::endl << std::endl;
+					of << CppRest::Utilities::s2u(CppRest::Utilities::convertJsonValueToFormattedString(res_json));
+					of.close();
+				}
+			}
+
 			web::json::value query(web::http::method method, bool authenticated, const std::string &path, CppRest::Utilities::QueryParams params = CppRest::Utilities::QueryParams(), bool outputDebugFile = false)
 			{
 				bool retry = true;
@@ -375,7 +398,8 @@ namespace tylawin
 					web::http::http_request request = makeRequest(method, authenticated, path, params);
 
 					//Request rate limit: 6 per second max
-					const static std::chrono::milliseconds requestRateLimitTime(1000/3);
+					const static std::chrono::milliseconds minRequestRateLimitTime(1000 / 6);
+					static std::chrono::milliseconds requestRateLimitTime = minRequestRateLimitTime;
 
 					static std::chrono::time_point<std::chrono::steady_clock> lastTime = std::chrono::steady_clock::now() - requestRateLimitTime;
 					auto now = std::chrono::steady_clock::now();
@@ -396,8 +420,16 @@ namespace tylawin
 							else if(response.headers().content_type().substr(0, utility::string_t(U("text/html")).size()) == U("text/html"))
 							{
 								auto atask = response.extract_string();
-								try {
+								try
+								{
 									auto str = atask.get();
+
+									if (requestRateLimitTime > minRequestRateLimitTime)
+									{
+										requestRateLimitTime *= 0.99;
+										if (requestRateLimitTime < minRequestRateLimitTime)
+											requestRateLimitTime = minRequestRateLimitTime;
+									}
 
 									return pplx::task_from_result<web::json::value>(web::json::value(str));
 								}
@@ -408,32 +440,18 @@ namespace tylawin
 								}
 								throw std::runtime_error("error: unexpected response (" + std::to_string(response.status_code()) + ": " + CppRest::Utilities::u2s(response.headers().content_type()) + ")");
 							}
+							else if(response.status_code() == 429 && response.reason_phrase() == U("Too Many Requests"))
+							{
+								requestRateLimitTime *= 1.75;
+								std::this_thread::sleep_for(std::chrono::seconds(15));
+								throw web::http::http_exception(CppRest::Utilities::u2s(response.reason_phrase()));
+							}
 							else
 								throw std::runtime_error("error: unexpected status code (" + std::to_string(response.status_code()) + ") " + CppRest::Utilities::u2s(response.reason_phrase()));
 						}).then([=](web::json::value res_json) -> web::json::value
 						{
 							if(outputDebugFile)
-							{
-								std::string fileName = "logs/query_" + CppRest::Utilities::paramUriToValidFileName(CppRest::Utilities::u2s(request.request_uri().to_string()));
-								if(authenticated)
-									fileName += "-" + CppRest::Utilities::paramUriToValidFileName(CppRest::Utilities::paramsToUrlString(params));
-								fileName += ".txt";
-								filesystem::path p(fileName);
-								if(!filesystem::exists(p.parent_path()))
-									filesystem::create_directories(p.parent_path());
-								utility::ofstream_t of(p.string());
-								if(of.is_open() == false)
-								{
-									throw std::runtime_error("Unable to open file(" + fileName + ")");
-								}
-								else
-								{
-									of << U("--REQUEST--") << std::endl;
-									of << request.to_string() << std::endl << U("--RESPONSE--") << std::endl << std::endl;
-									of << CppRest::Utilities::s2u(CppRest::Utilities::convertJsonValueToFormattedString(res_json));
-									of.close();
-								}
-							}
+								writeQueryDebugOutputFile(request, authenticated, params, res_json);
 
 							if(res_json.is_null())
 								throw std::runtime_error("res_json is null");
@@ -461,7 +479,7 @@ namespace tylawin
 					{
 						std::cout << "http request exception: " << e.what() << std::endl;
 						retry = true;
-						std::this_thread::sleep_for(std::chrono::seconds(5));
+						std::this_thread::sleep_for(std::chrono::seconds(15));
 					}
 				}
 
