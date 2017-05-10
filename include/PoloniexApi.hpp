@@ -392,16 +392,16 @@ namespace tylawin
 
 			web::json::value query(web::http::method method, bool authenticated, const std::string &path, CppRest::Utilities::QueryParams params = CppRest::Utilities::QueryParams(), bool outputDebugFile = false)
 			{
+				//Request rate limit: 6 per second max
+				const static std::chrono::milliseconds minRequestRateLimitTime(1000 / 6);
+				static std::chrono::milliseconds requestRateLimitTime = minRequestRateLimitTime;
+				static std::chrono::time_point<std::chrono::steady_clock> lastTime = std::chrono::steady_clock::now() - requestRateLimitTime;
+
 				bool retry = true;
 				while(retry)
 				{
 					web::http::http_request request = makeRequest(method, authenticated, path, params);
 
-					//Request rate limit: 6 per second max
-					const static std::chrono::milliseconds minRequestRateLimitTime(1000 / 6);
-					static std::chrono::milliseconds requestRateLimitTime = minRequestRateLimitTime;
-
-					static std::chrono::time_point<std::chrono::steady_clock> lastTime = std::chrono::steady_clock::now() - requestRateLimitTime;
 					auto now = std::chrono::steady_clock::now();
 					if(now - lastTime < requestRateLimitTime)
 						std::this_thread::sleep_for(requestRateLimitTime - (now - lastTime));
@@ -424,13 +424,6 @@ namespace tylawin
 								{
 									auto str = atask.get();
 
-									if (requestRateLimitTime > minRequestRateLimitTime)
-									{
-										requestRateLimitTime *= 0.99;
-										if (requestRateLimitTime < minRequestRateLimitTime)
-											requestRateLimitTime = minRequestRateLimitTime;
-									}
-
 									return pplx::task_from_result<web::json::value>(web::json::value(str));
 								}
 								catch(const std::exception &e)
@@ -442,8 +435,6 @@ namespace tylawin
 							}
 							else if(response.status_code() == 429 && response.reason_phrase() == U("Too Many Requests"))
 							{
-								requestRateLimitTime *= 1.75;
-								std::this_thread::sleep_for(std::chrono::seconds(15));
 								throw web::http::http_exception(CppRest::Utilities::u2s(response.reason_phrase()));
 							}
 							else
@@ -478,9 +469,21 @@ namespace tylawin
 					catch(const web::http::http_exception &e)
 					{
 						std::cout << "http request exception: " << e.what() << std::endl;
+						if (strcmp(e.what(), "Too Many Requests") == 0)
+						{
+							requestRateLimitTime *= 2;
+							std::this_thread::sleep_for(std::chrono::seconds(25));
+						}
+						std::this_thread::sleep_for(std::chrono::seconds(5));
 						retry = true;
-						std::this_thread::sleep_for(std::chrono::seconds(15));
 					}
+				}
+
+				if (requestRateLimitTime > minRequestRateLimitTime)
+				{
+					requestRateLimitTime -= std::chrono::milliseconds(1);
+					if (requestRateLimitTime < minRequestRateLimitTime)
+						requestRateLimitTime = minRequestRateLimitTime;
 				}
 
 				return web::json::value();
