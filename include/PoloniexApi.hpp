@@ -336,38 +336,43 @@ namespace tylawin
 				f.close();
 			}
 
+			web::http::http_request makeRequest(web::http::method method, bool authenticated, const std::string &path, CppRest::Utilities::QueryParams params = CppRest::Utilities::QueryParams())
+			{
+				web::http::http_request request;
+
+				request.set_method(method);
+
+				std::string urlEncodedParameters = "";
+				if (authenticated)
+				{
+					params["nonce"] = std::to_string(++nonce_);
+					saveNonce();
+					urlEncodedParameters = CppRest::Utilities::paramsToUrlString(params);
+					std::string signedUrlEncodedParameters = CppRest::Utilities::hmacSha512(secret_, urlEncodedParameters);
+					request.headers().add(U("Content-Type"), U("application/x-www-form-urlencoded"));
+					request.headers().add(U("Sign"), CppRest::Utilities::s2u(signedUrlEncodedParameters));
+					request.headers().add(U("Key"), CppRest::Utilities::s2u(key_));
+					request.headers().add(U("Content-Length"), CppRest::Utilities::s2u(std::to_string(urlEncodedParameters.size())));
+				}
+				else
+					urlEncodedParameters = CppRest::Utilities::paramsToUrlString(params);
+
+				std::string reqUri = path;
+				if (!authenticated && params.size() > 0)
+					reqUri += "?" + urlEncodedParameters;
+				else if (authenticated)
+					request.set_body(urlEncodedParameters);
+				request.set_request_uri(CppRest::Utilities::s2u(reqUri));
+
+				return request;
+			}
+
 			web::json::value query(web::http::method method, bool authenticated, const std::string &path, CppRest::Utilities::QueryParams params = CppRest::Utilities::QueryParams(), bool outputDebugFile = false)
 			{
 				bool retry = true;
 				while(retry)
 				{
-					web::http::http_request request;
-
-					request.set_method(method);
-
-					std::string urlEncodedParameters = "";
-					if(authenticated)
-					{
-						params["nonce"] = std::to_string(++nonce_);
-						saveNonce();
-						urlEncodedParameters = CppRest::Utilities::paramsToUrlString(params);
-						std::string signedUrlEncodedParameters = CppRest::Utilities::hmacSha512(secret_, urlEncodedParameters);
-						request.headers().add(U("Content-Type"), U("application/x-www-form-urlencoded"));
-						request.headers().add(U("Sign"), CppRest::Utilities::s2u(signedUrlEncodedParameters));
-						request.headers().add(U("Key"), CppRest::Utilities::s2u(key_));
-						request.headers().add(U("Content-Length"), CppRest::Utilities::s2u(std::to_string(urlEncodedParameters.size())));
-					}
-					else
-						urlEncodedParameters = CppRest::Utilities::paramsToUrlString(params);
-
-					std::string reqUri = path;
-					if(!authenticated && params.size() > 0)
-						reqUri += "?" + urlEncodedParameters;
-					else if(authenticated)
-						request.set_body(urlEncodedParameters);
-					request.set_request_uri(CppRest::Utilities::s2u(reqUri));
-
-					utility::string_t tmpRequestStr = request.to_string();
+					web::http::http_request request = makeRequest(method, authenticated, path, params);
 
 					//Request rate limit: 6 per second max
 					const static std::chrono::milliseconds requestRateLimitTime(1000/3);
@@ -409,7 +414,7 @@ namespace tylawin
 						{
 							if(outputDebugFile)
 							{
-								std::string fileName = "logs/query_" + CppRest::Utilities::paramUriToValidFileName(reqUri);
+								std::string fileName = "logs/query_" + CppRest::Utilities::paramUriToValidFileName(CppRest::Utilities::u2s(request.request_uri().to_string()));
 								if(authenticated)
 									fileName += "-" + CppRest::Utilities::paramUriToValidFileName(CppRest::Utilities::paramsToUrlString(params));
 								fileName += ".txt";
@@ -424,7 +429,7 @@ namespace tylawin
 								else
 								{
 									of << U("--REQUEST--") << std::endl;
-									of << tmpRequestStr << std::endl << U("--RESPONSE--") << std::endl << std::endl;
+									of << request.to_string() << std::endl << U("--RESPONSE--") << std::endl << std::endl;
 									of << CppRest::Utilities::s2u(CppRest::Utilities::convertJsonValueToFormattedString(res_json));
 									of.close();
 								}
