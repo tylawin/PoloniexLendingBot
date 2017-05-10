@@ -16,8 +16,8 @@ limitations under the License.
 
 #pragma once
 
-#include "PoloniexApi.hpp"
 #include "logging.hpp"
+#include "PoloniexApi.hpp"
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 #undef BOOST_NO_EXCEPTIONS
@@ -289,11 +289,11 @@ namespace tylawin
 							}
 						}
 					}
-					catch(const std::invalid_argument &e)
+					catch(const std::invalid_argument &)
 					{
 						throw;
 					}
-					catch(const boost::exception &e)//TODO: boost::property_tree specific exceptions???
+					catch(const boost::exception &)//TODO: boost::property_tree specific exceptions???
 					{
 						throw std::invalid_argument("Parse error: " + boost::current_exception_diagnostic_information());
 					}
@@ -872,77 +872,76 @@ namespace tylawin
 					{
 						try
 						{
-
-						if (settings_.data_.coinSettings_[curCode].stopLending_)
-						{
-							cancelAllOpenLoanOffers(curCode);
-							continue;
-						}
-
-						availableBalance = 0;
-						if(lendingBalances.find(curCode) != lendingBalances.end())
-							availableBalance += lendingBalances.at(curCode);
-						if(loanOffers.find(curCode) != loanOffers.end())
-							for (auto loanOffer : loanOffers.at(curCode))
-								availableBalance += loanOffer.amount_;
-
-						auto optimalSpreadOffers = calcOptimalSpreadLendOffers(curCode, availableBalance);
-
-						//cancel offers that are not optimal
-						bool cancelLoanOfferFailed = false;
-						if (loanOffers.find(curCode) != loanOffers.end())
-							for (auto existingOfferIter = loanOffers.at(curCode).begin(); existingOfferIter != loanOffers.at(curCode).end(); )
+							if (settings_.data_.coinSettings_[curCode].stopLending_)
 							{
-								auto &existingOffer = *existingOfferIter;
-								auto iter = std::find_if(optimalSpreadOffers.begin(), optimalSpreadOffers.end(), [&](const auto &optimalOffer) { 
-									return (existingOffer.amount_ == optimalOffer.amount_ && existingOffer.rate_ == optimalOffer.rate_);
-								});
-								if (iter != optimalSpreadOffers.end())
-								{
-									optimalSpreadOffers.erase(iter);
-									++existingOfferIter;
-								}
-								else //if (!isOptimal)
-								{
-									auto rsp = poloApi.cancelLoanOffer(existingOffer.id_);
-									INFO << " Canceling " << curCode << " order of " << existingOffer.amount_ << " at " << to_string(existingOffer.rate_ * 100, 4) << "%... " << (rsp.success_ ? "Canceled - msg: " : "Failed - error: ") << rsp.msg_;
-									if (rsp.success_)
-									{
-										existingOfferIter = loanOffers.at(curCode).erase(existingOfferIter);
-									}
-									else
-									{
-										cancelLoanOfferFailed = true;
-										++existingOfferIter;
-									}
-								}
+								cancelAllOpenLoanOffers(curCode);
+								continue;
 							}
 
-						if (cancelLoanOfferFailed)
-						{
-							needRefreshLoans = true;//reset loop to recalculate available balance and optimal offers
-							continue;
-						}
+							availableBalance = 0;
+							if(lendingBalances.find(curCode) != lendingBalances.end())
+								availableBalance += lendingBalances.at(curCode);
+							if(loanOffers.find(curCode) != loanOffers.end())
+								for (auto loanOffer : loanOffers.at(curCode))
+									availableBalance += loanOffer.amount_;
 
-						//create offers that are optimal
-						for (auto newOffer : optimalSpreadOffers)
-						{
-							bool existsAlready = false;
+							auto optimalSpreadOffers = calcOptimalSpreadLendOffers(curCode, availableBalance);
+
+							//cancel offers that are not optimal
+							bool cancelLoanOfferFailed = false;
 							if (loanOffers.find(curCode) != loanOffers.end())
-								for (auto existingOffer : loanOffers.at(curCode))
+								for (auto existingOfferIter = loanOffers.at(curCode).begin(); existingOfferIter != loanOffers.at(curCode).end(); )
 								{
-									if (newOffer.amount_ == existingOffer.amount_ && newOffer.rate_ == existingOffer.rate_)
-										existsAlready = true;
+									auto &existingOffer = *existingOfferIter;
+									auto iter = std::find_if(optimalSpreadOffers.begin(), optimalSpreadOffers.end(), [&](const auto &optimalOffer) { 
+										return (existingOffer.amount_ == optimalOffer.amount_ && existingOffer.rate_ == optimalOffer.rate_);
+									});
+									if (iter != optimalSpreadOffers.end())
+									{
+										optimalSpreadOffers.erase(iter);
+										++existingOfferIter;
+									}
+									else //if (!isOptimal)
+									{
+										auto rsp = poloApi.cancelLoanOffer(existingOffer.id_);
+										INFO << " Canceling " << curCode << " order of " << existingOffer.amount_ << " at " << to_string(existingOffer.rate_ * 100, 4) << "%... " << (rsp.success_ ? "Canceled - msg: " : "Failed - error: ") << rsp.msg_;
+										if (rsp.success_)
+										{
+											existingOfferIter = loanOffers.at(curCode).erase(existingOfferIter);
+										}
+										else
+										{
+											cancelLoanOfferFailed = true;
+											++existingOfferIter;
+										}
+									}
 								}
 
-							if (!existsAlready)
-								createLoanOffer(curCode, newOffer.amount_, newOffer.rate_);
+							if (cancelLoanOfferFailed)
+							{
+								needRefreshLoans = true;//reset loop to recalculate available balance and optimal offers
+								continue;
+							}
+
+							//create offers that are optimal
+							for (auto newOffer : optimalSpreadOffers)
+							{
+								bool existsAlready = false;
+								if (loanOffers.find(curCode) != loanOffers.end())
+									for (auto existingOffer : loanOffers.at(curCode))
+									{
+										if (newOffer.amount_ == existingOffer.amount_ && newOffer.rate_ == existingOffer.rate_)
+											existsAlready = true;
+									}
+
+								if (!existsAlready)
+									createLoanOffer(curCode, newOffer.amount_, newOffer.rate_);
+							}
 						}
-					}
-					catch(...)
-					{
-						ERROR << "Refresh loans failed for " << curCode;
-					}
+						catch(...)
+						{
+							ERROR << "Refresh loans failed for " << curCode;
+						}
 					}
 				}
 

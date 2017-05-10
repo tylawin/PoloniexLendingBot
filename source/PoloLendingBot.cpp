@@ -1,5 +1,4 @@
 #include "PoloniexLendingBot.hpp"
-#include "logging.hpp"
 
 #include <thread>
 
@@ -37,7 +36,9 @@ int main(int argc, char **argv)
 		return false;
 	});
 
-	for(size_t i = 0; i < argc; ++i)
+	if (argc < 0)
+		throw runtime_error("argc overflow?");
+	for(size_t i = 0; i < static_cast<size_t>(argc); ++i)
 	{
 		if(strcmp(argv[i], "--clearAutoRenew") == 0)
 		{
@@ -61,7 +62,7 @@ int main(int argc, char **argv)
 	{
 		poloLendBot.run();
 	}
-	catch(const std::exception &e)
+	catch(const std::exception &)
 	{
 		ERROR << boost::current_exception_diagnostic_information();
 		return EXIT_FAILURE;

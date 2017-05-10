@@ -370,10 +370,13 @@ namespace tylawin
 					utility::string_t tmpRequestStr = request.to_string();
 
 					//Request rate limit: 6 per second max
-					static std::chrono::time_point<std::chrono::steady_clock> tp = std::chrono::steady_clock::now();
-					if(std::chrono::steady_clock::now() - tp < std::chrono::milliseconds(167))
-						std::this_thread::sleep_for(std::chrono::milliseconds(167) - (std::chrono::steady_clock::now() - tp));
-					tp = std::chrono::steady_clock::now();
+					const static std::chrono::milliseconds requestRateLimitTime(1000/3);
+
+					static std::chrono::time_point<std::chrono::steady_clock> lastTime = std::chrono::steady_clock::now() - requestRateLimitTime;
+					auto now = std::chrono::steady_clock::now();
+					if(now - lastTime < requestRateLimitTime)
+						std::this_thread::sleep_for(requestRateLimitTime - (now - lastTime));
+					lastTime = std::chrono::steady_clock::now();
 
 					retry = false;
 					try
@@ -401,7 +404,7 @@ namespace tylawin
 								throw std::runtime_error("error: unexpected response (" + std::to_string(response.status_code()) + ": " + CppRest::Utilities::u2s(response.headers().content_type()) + ")");
 							}
 							else
-								throw std::runtime_error("error: unexpected content type");
+								throw std::runtime_error("error: unexpected status code (" + std::to_string(response.status_code()) + ") " + CppRest::Utilities::u2s(response.reason_phrase()));
 						}).then([=](web::json::value res_json) -> web::json::value
 						{
 							if(outputDebugFile)
