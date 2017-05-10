@@ -17,7 +17,7 @@ limitations under the License.
 #pragma once
 
 
-#ifdef __LINUX__
+#ifdef __linux__
 #define OLD_BOOST // delete when Raspbian has boost update
 #endif
 
