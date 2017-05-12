@@ -438,10 +438,10 @@ namespace tylawin
 								writeQueryDebugOutputFile(request, authenticated, params, res_json);
 
 							if(res_json.is_null())
-								throw std::runtime_error(__FUNCTION__ ":" STR__LINE__ " e: res_json is null");
+								throw std::runtime_error(__FILE__ ":" STR__LINE__ " e: res_json is null");
 
 							if (!res_json.is_object() && !res_json.is_array())
-								throw std::runtime_error(__FUNCTION__ ":" STR__LINE__ " e: not obj - " + CppRest::Utilities::u2s(res_json.serialize()).substr(0, 500));
+								throw std::runtime_error(__FILE__ ":" STR__LINE__ " e: not obj - " + CppRest::Utilities::u2s(res_json.serialize()).substr(0, 500));
 
 							if(res_json.has_field(U("error")))
 							{
@@ -456,7 +456,7 @@ namespace tylawin
 								else if (errStr.compare(0, utility::string_t(U("Error canceling loan order")).size(), U("Error canceling loan order")) == 0)
 									return res_json;
 								else
-									throw std::runtime_error(__FUNCTION__ ":" STR__LINE__ " e: unknown api error: " + CppRest::Utilities::u2s(res_json.serialize()));
+									throw std::runtime_error(__FILE__ ":" STR__LINE__ " e: unknown api error: " + CppRest::Utilities::u2s(res_json.serialize()));
 							}
 
 							return res_json;
