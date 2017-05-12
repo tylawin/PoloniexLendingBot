@@ -245,12 +245,9 @@ namespace tylawin
 				else
 					response = query(web::http::methods::GET, false, "/public", { {"command","returnLoanOrders"}, {"currency",currency}, {"limit",std::to_string(*limit)} });
 
-				if(response.has_field(U("error")))
-					throw std::runtime_error("error reponse: " + CppRest::Utilities::u2s(response[U("error")].as_string()));
-
 				LoanOrders loanOrders;
 				LoanOrders::Details tmpDetails;
-				if(response[U("offers")].size() != 0)
+				if(response.has_field(U("offers")) && response[U("offers")].size() != 0)
 				{
 					for(auto offer : response[U("offers")].as_array())
 					{
@@ -261,7 +258,7 @@ namespace tylawin
 						loanOrders.offers_.insert(std::make_pair(CppRest::Utilities::u2s(offer[U("rate")].as_string()), tmpDetails));
 					}
 				}
-				if(response[U("demands")].size() != 0)
+				if(response.has_field(U("demands")) && response[U("demands")].size() != 0)
 				{
 					for(auto offer : response[U("demands")].as_array())
 					{
@@ -289,10 +286,6 @@ namespace tylawin
 			auto getOpenLoanOffers()
 			{
 				auto response = query(web::http::methods::POST, true, "/tradingApi", { { "command","returnOpenLoanOffers" } });
-				if(response.has_field(U("error")))
-				{
-					throw std::runtime_error("error response: " + CppRest::Utilities::u2s(response[U("error")].as_string()));
-				}
 
 				LoanOffers loanOffers;
 				if (response.size() != 0)
@@ -445,20 +438,25 @@ namespace tylawin
 								writeQueryDebugOutputFile(request, authenticated, params, res_json);
 
 							if(res_json.is_null())
-								throw std::runtime_error("res_json is null");
+								throw std::runtime_error(__FUNCTION__ ":" STR__LINE__ " e: res_json is null");
+
+							if (!res_json.is_object() && !res_json.is_array())
+								throw std::runtime_error(__FUNCTION__ ":" STR__LINE__ " e: not obj - " + CppRest::Utilities::u2s(res_json.serialize()).substr(0, 500));
 
 							if(res_json.has_field(U("error")))
 							{
 								utility::string_t errStr = res_json[U("error")].as_string();
 								//{ error:"Nonce must be greater than 1460846370855. You provided 2." }
-								if(errStr.compare(0, utility::string_t(U("Nonce must be greater than ")).size(), U("Nonce must be greater than ")) == 0)
+								if (errStr.compare(0, utility::string_t(U("Nonce must be greater than ")).size(), U("Nonce must be greater than ")) == 0)
 								{
 									errStr = errStr.substr(utility::string_t(U("Nonce must be greater than ")).size());
 									nonce_ = stoull(errStr.substr(0, errStr.find(U('.'))));
 									throw web::http::http_exception(CppRest::Utilities::u2s(res_json[U("error")].as_string()));
 								}
-								else if(errStr.compare(0, utility::string_t(U("Error canceling loan order")).size(), U("Error canceling loan order")) != 0)
-									throw std::runtime_error("unexpected result: " + CppRest::Utilities::u2s(res_json.serialize()));
+								else if (errStr.compare(0, utility::string_t(U("Error canceling loan order")).size(), U("Error canceling loan order")) == 0)
+									return res_json;
+								else
+									throw std::runtime_error(__FUNCTION__ ":" STR__LINE__ " e: unknown api error: " + CppRest::Utilities::u2s(res_json.serialize()));
 							}
 
 							return res_json;
